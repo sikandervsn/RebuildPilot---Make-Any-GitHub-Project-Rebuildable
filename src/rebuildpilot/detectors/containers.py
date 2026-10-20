@@ -48,7 +48,7 @@ def detect(context: ScanContext, has_project_content: bool) -> ContainerResult:
         findings = [
             make_finding(
                 "RP-CONTAINER-001",
-                Severity.medium,
+                Severity.low,
                 "No reproducible runtime definition detected",
                 "The project has source or dependency files but no Dockerfile, compose file, devcontainer, or Nix flake.",
                 "Add a Dockerfile or another documented runtime definition when a clean-machine environment matters.",

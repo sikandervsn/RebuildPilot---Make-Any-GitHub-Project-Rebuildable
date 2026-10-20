@@ -97,6 +97,10 @@ def render(report: AnalysisReport) -> str:
     <li>Likely test commands: {_value_list(report.likely_test_commands)}</li>
     <li>Environment variables used: {_value_list(report.environment_variables_used)}</li>
     <li>Environment variables documented: {_value_list(report.environment_variables_documented)}</li>
+    <li>ML frameworks: {_value_list(report.ml_frameworks)}</li>
+    <li>Model artifacts: {_value_list(report.model_artifacts)}</li>
+    <li>Dataset artifacts: {_value_list(report.dataset_artifacts)}</li>
+    <li>ML entry points: {_value_list(report.ml_entrypoints)}</li>
   </ul>
 
   <h2>Findings</h2>

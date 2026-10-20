@@ -106,6 +106,28 @@ def test_unix_machine_specific_paths_are_detected(tmp_path: Path) -> None:
     assert len(path_findings) == 2
 
 
+def test_paths_in_tests_are_advisory_not_critical(tmp_path: Path) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_paths.py").write_text(
+        "fixture = 'C:\\\\Users\\\\developer\\\\fixture'\n", encoding="utf-8"
+    )
+
+    report = analyze(tmp_path)
+
+    finding = next(item for item in report.findings if item.rule_id == "RP-PATH-001")
+    assert finding.severity is Severity.medium
+    assert not report.critical_findings()
+
+
+def test_missing_lockfile_is_a_risk_not_a_completeness_failure(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text('{"name": "library", "version": "1.0.0"}', encoding="utf-8")
+
+    report = analyze(tmp_path)
+
+    finding = next(item for item in report.findings if item.rule_id == "RP-DEPS-001")
+    assert finding.severity is Severity.medium
+
+
 def test_unreadable_and_malformed_inputs_are_reported(tmp_path: Path) -> None:
     (tmp_path / "package.json").write_text('{"scripts": ', encoding="utf-8")
     (tmp_path / "broken.py").write_bytes(b"value = '\xff'\n")

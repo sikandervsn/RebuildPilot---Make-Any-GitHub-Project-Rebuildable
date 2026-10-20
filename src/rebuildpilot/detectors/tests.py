@@ -75,7 +75,7 @@ def detect(context: ScanContext, languages: list[str]) -> TestResult:
         findings = [
             make_finding(
                 "RP-TEST-001",
-                Severity.medium,
+                Severity.low,
                 "No test command detected",
                 "No recognizable test configuration, test files, or package test script was found.",
                 "Add a deterministic test command and run it in continuous integration.",
