@@ -126,10 +126,10 @@ def detect(context: ScanContext) -> DependencyResult:
         findings.append(
             make_finding(
                 "RP-DEPS-001",
-                Severity.high,
-                "Dependency manifest has no lockfile",
-                "A dependency manifest was found, but no recognized lockfile pins transitive versions.",
-                "Generate and commit the lockfile used by the project's package manager.",
+                Severity.medium,
+                "Dependency manifest has no recognized lockfile",
+                "A dependency manifest was found, but no recognized lockfile was found at the analyzed project level. This is a reproducibility risk, not proof that the project is incomplete.",
+                "Prefer the package manager's lockfile when the project is an application or reproducible deployment; for libraries, document the supported dependency range and CI matrix instead.",
             )
         )
     elif lockfiles:

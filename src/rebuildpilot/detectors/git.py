@@ -32,7 +32,7 @@ def detect(context: ScanContext) -> GitResult:
         findings = [
             make_finding(
                 "RP-GIT-001",
-                Severity.medium,
+                Severity.low,
                 "Target is not a Git repository",
                 "No .git directory or worktree marker was found at the target root.",
                 "Run the analysis from a cloned Git repository or include the target in version control before sharing it.",

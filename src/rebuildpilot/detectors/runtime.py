@@ -57,7 +57,7 @@ def detect(context: ScanContext, languages: list[str]) -> RuntimeResult:
         findings.append(
             make_finding(
                 "RP-RUNTIME-001",
-                Severity.medium,
+                Severity.low,
                 "Runtime version is not pinned",
                 "Source files suggest a programming language, but no recognized runtime/version file was found.",
                 "Add a runtime declaration such as .python-version, .nvmrc, go.mod, or rust-toolchain.toml.",

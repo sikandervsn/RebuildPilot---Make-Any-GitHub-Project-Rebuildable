@@ -88,6 +88,10 @@ class AnalysisReport(BaseModel):
     score: int = Field(ge=0, le=100)
     score_reasons: list[ScoreReason]
     summary: str
+    ml_frameworks: list[str] = Field(default_factory=list)
+    model_artifacts: list[str] = Field(default_factory=list)
+    dataset_artifacts: list[str] = Field(default_factory=list)
+    ml_entrypoints: list[str] = Field(default_factory=list)
 
     def critical_findings(self) -> list[Finding]:
         return [finding for finding in self.findings if finding.severity is Severity.critical]

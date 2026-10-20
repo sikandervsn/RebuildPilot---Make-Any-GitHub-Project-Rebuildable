@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from .detectors import containers, dependencies, documentation, environment, git, paths, runtime, tests
+from .detectors import containers, dependencies, documentation, environment, git, machine_learning, paths, runtime, tests
 from .detectors.common import make_finding
 from .detectors.context import ScanContext
 from .models import AnalysisReport, Finding, ProjectFile, Severity
@@ -80,6 +81,7 @@ TEXT_NAMES = {
     "uv.lock",
     "yarn.lock",
 }
+TEXT_NAMES_CASEFOLD = {name.casefold() for name in TEXT_NAMES}
 
 
 def _is_ignored(path: Path, root: Path) -> bool:
@@ -88,7 +90,7 @@ def _is_ignored(path: Path, root: Path) -> bool:
 
 
 def _is_text_candidate(path: Path) -> bool:
-    return path.name.lower() in {name.lower() for name in TEXT_NAMES} or path.suffix.lower() in TEXT_EXTENSIONS
+    return path.name.casefold() in TEXT_NAMES_CASEFOLD or path.suffix.casefold() in TEXT_EXTENSIONS
 
 
 def _inventory(root: Path) -> tuple[tuple[ProjectFile, ...], list[Finding], list[str], tuple[str, ...]]:
@@ -96,9 +98,59 @@ def _inventory(root: Path) -> tuple[tuple[ProjectFile, ...], list[Finding], list
     findings: list[Finding] = []
     unreadable: list[str] = []
     directories: set[str] = set()
+    walk_error: OSError | None = None
+
+    def on_walk_error(error: OSError) -> None:
+        nonlocal walk_error
+        walk_error = error
+
     try:
-        candidates = sorted(root.rglob("*"), key=lambda path: path.as_posix().lower())
+        walker = os.walk(root, topdown=True, onerror=on_walk_error)
+        for directory, dirnames, filenames in walker:
+            current = Path(directory)
+            dirnames[:] = sorted(
+                (name for name in dirnames if name.casefold() not in IGNORED_DIRECTORIES),
+                key=str.casefold,
+            )
+            for name in dirnames:
+                directories.add((current / name).relative_to(root).as_posix())
+            for name in sorted(filenames, key=str.casefold):
+                path = current / name
+                if not path.is_file():
+                    continue
+                relative = path.relative_to(root).as_posix()
+                text: str | None = None
+                read_error: str | None = None
+                if _is_text_candidate(path):
+                    try:
+                        text = path.read_text(encoding="utf-8")
+                    except (OSError, UnicodeError) as error:
+                        read_error = str(error)
+                        unreadable.append(relative)
+                        findings.append(
+                            make_finding(
+                                "RP-INPUT-001",
+                                Severity.medium,
+                                "File could not be read",
+                                f"{relative} was not readable as UTF-8: {error}.",
+                                "Fix permissions or encoding so reproducibility checks can inspect this file.",
+                                relative,
+                            )
+                        )
+                files.append(
+                    ProjectFile(
+                        relative_path=relative,
+                        absolute_path=str(path),
+                        text=text,
+                        unreadable=read_error is not None,
+                        read_error=read_error,
+                    )
+                )
     except OSError as error:
+        walk_error = error
+
+    if walk_error is not None:
+        error = walk_error
         findings.append(
             make_finding(
                 "RP-INPUT-001",
@@ -108,44 +160,7 @@ def _inventory(root: Path) -> tuple[tuple[ProjectFile, ...], list[Finding], list
                 "Check filesystem permissions and run the analysis again.",
             )
         )
-        return tuple(), findings, unreadable, tuple()
-
-    for path in candidates:
-        if _is_ignored(path, root):
-            continue
-        if path.is_dir():
-            directories.add(path.relative_to(root).as_posix())
-            continue
-        if not path.is_file():
-            continue
-        relative = path.relative_to(root).as_posix()
-        text: str | None = None
-        read_error: str | None = None
-        if _is_text_candidate(path):
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeError) as error:
-                read_error = str(error)
-                unreadable.append(relative)
-                findings.append(
-                    make_finding(
-                        "RP-INPUT-001",
-                        Severity.medium,
-                        "File could not be read",
-                        f"{relative} was not readable as UTF-8: {error}.",
-                        "Fix permissions or encoding so reproducibility checks can inspect this file.",
-                        relative,
-                    )
-                )
-        files.append(
-            ProjectFile(
-                relative_path=relative,
-                absolute_path=str(path),
-                text=text,
-                unreadable=read_error is not None,
-                read_error=read_error,
-            )
-        )
+    files.sort(key=lambda item: item.relative_path.casefold())
     return tuple(files), findings, sorted(unreadable), tuple(sorted(directories))
 
 
@@ -187,6 +202,10 @@ def analyze(target: Path) -> AnalysisReport:
         raise ValueError(f"Target path is not a directory: {target}")
     root = target.resolve()
     files, input_findings, unreadable, directories = _inventory(root)
+    if not files:
+        raise ValueError(
+            f"No project files were found in {root}. Choose a folder containing source code or a project manifest."
+        )
     context = ScanContext(root=root, files=files, directories=directories)
 
     dependency_result = dependencies.detect(context)
@@ -196,6 +215,7 @@ def analyze(target: Path) -> AnalysisReport:
     test_result = tests.detect(context, dependency_result.languages)
     documentation_result = documentation.detect(context)
     git_result = git.detect(context)
+    ml_result = machine_learning.detect(context)
 
     all_findings = (
         input_findings
@@ -207,6 +227,7 @@ def analyze(target: Path) -> AnalysisReport:
         + paths.detect(context)
         + documentation_result.findings
         + git_result.findings
+        + ml_result.findings
     )
     findings = with_default_deductions(_deduplicate(all_findings))
     score, reasons = calculate_score(findings)
@@ -230,4 +251,8 @@ def analyze(target: Path) -> AnalysisReport:
         score=score,
         score_reasons=reasons,
         summary=summary,
+        ml_frameworks=ml_result.frameworks,
+        model_artifacts=ml_result.model_artifacts,
+        dataset_artifacts=ml_result.dataset_artifacts,
+        ml_entrypoints=ml_result.entrypoints,
     )

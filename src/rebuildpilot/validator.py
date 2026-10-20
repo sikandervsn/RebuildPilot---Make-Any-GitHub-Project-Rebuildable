@@ -43,9 +43,9 @@ def _run_command(command: str, cwd: Path, timeout: int) -> ValidationCheck:
     if shutil.which(tokens[0]) is None:
         return ValidationCheck(
             name=f"test: {command}",
-            status=CheckStatus.skipped,
+            status=CheckStatus.failed,
             command=command,
-            details=f"The `{tokens[0]}` executable is not available on this machine.",
+            details=f"The requested `{tokens[0]}` executable is not available on this machine.",
         )
 
     started = time.perf_counter()
